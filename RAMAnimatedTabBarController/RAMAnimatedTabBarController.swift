@@ -186,11 +186,44 @@ extension  RAMAnimatedTabBarController {
     }
 }
 
+
+public enum RAMAnimatedTabBarOnTapAction {
+    case selectTab
+    case none
+}
+
+public protocol RAMAnimatedTabBarDelegate {
+    var tabBarHeight: CGFloat { get }
+    func didTapOnTab(index: Int) -> RAMAnimatedTabBarOnTapAction
+}
+
+public extension RAMAnimatedTabBarDelegate {
+    var tabBarHeight: CGFloat {
+        return RAMAnimatedTabBarController.Constants.defaultTabBarHeight
+    }
+
+    func didTapOnTab(index: Int) -> RAMAnimatedTabBarOnTapAction {
+        return .selectTab
+    }
+}
+
 /// UITabBarController with item animations
 open class RAMAnimatedTabBarController: UITabBarController {
 
+    struct Constants {
+        static let defaultTabBarHeight: CGFloat = 44
+    }
+
+    fileprivate struct DefaultAnimatedTabBarDelegate: RAMAnimatedTabBarDelegate { }
+
     fileprivate var didInit: Bool = false
     fileprivate var didLoadView: Bool = false
+
+    open var animatedTabBardelegate: RAMAnimatedTabBarDelegate?
+
+    fileprivate var _animatedTabBardelegate: RAMAnimatedTabBarDelegate {
+        return animatedTabBardelegate ?? DefaultAnimatedTabBarDelegate()
+    }
 
     // MARK: life circle
 
@@ -253,6 +286,15 @@ open class RAMAnimatedTabBarController: UITabBarController {
         self.initializeContainers()
     }
 
+    // Set tabbar height
+    override open func viewWillLayoutSubviews() {
+        var tabFrame = self.tabBar.frame
+        // - 40 is editable , I think the default value is around 50 px, below lowers the tabbar and above increases the tab bar size
+        tabFrame.size.height = _animatedTabBardelegate.tabBarHeight
+        tabFrame.origin.y = self.view.frame.size.height - _animatedTabBardelegate.tabBarHeight
+        self.tabBar.frame = tabFrame
+    }
+
     fileprivate func initializeContainers() {
         if !self.didInit || !self.didLoadView {
             return
@@ -303,6 +345,11 @@ open class RAMAnimatedTabBarController: UITabBarController {
             container.backgroundColor = (items as [RAMAnimatedTabBarItem])[index].bgDefaultColor
 
             container.addSubview(icon)
+            var imageYOffset:CGFloat = 0
+            if (item.title ?? "").lengthOfBytes(using: .utf8) > 0{
+                imageYOffset = -5
+            }
+            createConstraints(icon, container: container, size: itemImage.size, yOffset: imageYOffset)
             createConstraints(icon, container: container, size: itemImage.size, yOffset: -5 - item.yOffSet)
 
             container.addSubview(textLabel)
@@ -394,7 +441,7 @@ open class RAMAnimatedTabBarController: UITabBarController {
 
     fileprivate func createViewContainer() -> UIView {
         let viewContainer = UIView();
-        viewContainer.backgroundColor = UIColor.clear // for test
+        viewContainer.backgroundColor = self.tabBar.tintColor
         viewContainer.translatesAutoresizingMaskIntoConstraints = false
         viewContainer.isExclusiveTouch = true
         view.addSubview(viewContainer)
@@ -421,38 +468,44 @@ open class RAMAnimatedTabBarController: UITabBarController {
                                         toItem: nil,
                                         attribute: NSLayoutAttribute.notAnAttribute,
                                         multiplier: 1,
-                                        constant: tabBar.frame.size.height)
+                                        constant: _animatedTabBardelegate.tabBarHeight)
         viewContainer.addConstraint(constH)
 
         return viewContainer
     }
 
     // MARK: actions
-    
+
     open func tapHandler(_ gesture:UIGestureRecognizer) {
-        
+
         guard let items = tabBar.items as? [RAMAnimatedTabBarItem],
             let gestureView = gesture.view else {
                 fatalError("items must inherit RAMAnimatedTabBarItem")
         }
-        
+
         let currentIndex = gestureView.tag
-        
+
+        let onActionAction = _animatedTabBardelegate.didTapOnTab(index: currentIndex)
+
+        if onActionAction == .none {
+            return
+        }
+
         if items[currentIndex].isEnabled == false { return }
-        
+
         let controller = self.childViewControllers[currentIndex]
-        
+
         if let shouldSelect = delegate?.tabBarController?(self, shouldSelect: controller)
             , !shouldSelect {
             return
         }
-        
+
         if selectedIndex != currentIndex {
             let animationItem : RAMAnimatedTabBarItem = items[currentIndex]
             animationItem.playAnimation()
-            
+
             let deselectItem = items[selectedIndex]
-            
+
             let containerPrevious : UIView = deselectItem.iconView!.icon.superview!
             containerPrevious.backgroundColor = items[currentIndex].bgDefaultColor
             
