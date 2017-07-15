@@ -349,8 +349,7 @@ open class RAMAnimatedTabBarController: UITabBarController {
             if (item.title ?? "").lengthOfBytes(using: .utf8) > 0{
                 imageYOffset = -5
             }
-            createConstraints(icon, container: container, size: itemImage.size, yOffset: imageYOffset)
-            createConstraints(icon, container: container, size: itemImage.size, yOffset: -5 - item.yOffSet)
+            createConstraints(icon, container: container, size: itemImage.size, yOffset: imageYOffset - item.yOffSet)
 
             container.addSubview(textLabel)
             let textLabelWidth = tabBar.frame.size.width / CGFloat(items.count) - 5.0
